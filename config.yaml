@@ -8,7 +8,7 @@ content:
   # Niche/topic pool — a topic is picked at random each run (or set fixed_topic below)
   niche: "reviews of real, well-known, published bestselling books about becoming wealthy, building successful businesses, or achieving major success — e.g. Rich Dad Poor Dad, Think and Grow Rich, The Millionaire Fastlane. Only use real books with real authors, never invent a title."
   fixed_topic: null          # e.g. "why octopuses have three hearts" — overrides random pick
-  script_word_count: 45     # ~45-55 seconds of narration
+  script_word_count: 80     # ~45-55 seconds of narration
   language: "en"
   gemini_text_model: "gemini-3.6-flash"   # used for script writing
 
