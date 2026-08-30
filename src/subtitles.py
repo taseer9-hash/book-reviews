@@ -1,9 +1,6 @@
 """Builds an .ass subtitle file that displays words one-at-a-time (or in small
-groups), styled per config.yaml. This is the file to look at / extend if you
-want different caption styles — it's deliberately self-contained.
-
-All visual knobs (font, size, colors, outline, position, pop animation,
-highlight color) come from cfg["subtitles"]. Nothing here is hardcoded.
+groups), styled per config.yaml. Also supports an optional book title-card
+overlay shown during the opening seconds, for book-review style videos.
 """
 from pathlib import Path
 
@@ -11,8 +8,6 @@ _ALIGNMENT = {"bottom": 2, "middle": 5, "top": 8}
 
 
 def _group_words(words: list[dict], group_size: int) -> list[dict]:
-    """Merges consecutive word-timestamp dicts into groups of `group_size`,
-    keeping each word's own start/end so we can still highlight per-word."""
     groups = []
     for i in range(0, len(words), group_size):
         chunk = words[i:i + group_size]
@@ -46,6 +41,11 @@ def _build_header(cfg: dict) -> str:
     v = cfg["video"]
     align = _ALIGNMENT.get(s["position"], 2)
 
+    # Title card sits at the opposite end of the frame from the word captions
+    # so the two never visually collide.
+    title_card_align = 8 if align != 8 else 2
+    title_card_font_size = max(40, int(s["font_size"] * 0.55))
+
     return f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {v['width']}
@@ -56,6 +56,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Word,{s['font_name']},{s['font_size']},{s['primary_color']},{s['primary_color']},{s['outline_color']},&H00000000,{-1 if s['bold'] else 0},{-1 if s['italic'] else 0},0,0,100,100,0,0,1,{s['outline_width']},{s['shadow_depth']},{align},{s['horizontal_margin']},{s['horizontal_margin']},{s['vertical_margin']},1
+Style: TitleCard,{s['font_name']},{title_card_font_size},{s['primary_color']},{s['primary_color']},{s['outline_color']},&H00000000,-1,0,0,0,100,100,0,0,1,{s['outline_width']},{s['shadow_depth']},{title_card_align},{s['horizontal_margin']},{s['horizontal_margin']},80,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -63,7 +64,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 def _word_text(word: str, sub_cfg: dict, is_group_display: bool, highlight: bool) -> str:
-    """Builds the {\\tags}Text portion for a single dialogue line."""
     tags = ""
     if sub_cfg["pop_scale_start"] and sub_cfg["pop_duration_ms"] > 0:
         start_scale = sub_cfg["pop_scale_start"]
@@ -76,10 +76,26 @@ def _word_text(word: str, sub_cfg: dict, is_group_display: bool, highlight: bool
     return f"{{{tags}}}{word}" if tags else word
 
 
-def build_ass(words: list[dict], cfg: dict, out_path: str) -> str:
+def _title_card_line(book_title: str, book_author: str, duration: float) -> str:
+    """A simple fade-in/out title card: 'Book Title\\nby Author'."""
+    text = f"{{\\fad(300,400)}}{book_title}\\N{{\\fs0.8}}by {book_author}"
+    return f"Dialogue: 1,{_fmt_time(0)},{_fmt_time(duration)},TitleCard,,0,0,0,,{text}"
+
+
+def build_ass(
+    words: list[dict],
+    cfg: dict,
+    out_path: str,
+    book_title: str | None = None,
+    book_author: str | None = None,
+    title_card_duration: float = 4.0,
+) -> str:
     """Writes the .ass file and returns its path.
 
     words: list of {"word": str, "start": float, "end": float} from transcriber.py
+    book_title/book_author: if provided, shows a title card overlay for the
+    opening `title_card_duration` seconds (opposite screen position from the
+    word captions, so they never overlap).
     """
     sub_cfg = cfg["subtitles"]
     group_size = max(1, sub_cfg["max_words_per_group"])
@@ -87,9 +103,11 @@ def build_ass(words: list[dict], cfg: dict, out_path: str) -> str:
 
     lines = [_build_header(cfg)]
 
+    if book_title:
+        lines.append(_title_card_line(book_title, book_author or "", title_card_duration))
+
     for group in groups:
         if group_size == 1:
-            # single_word mode: one dialogue event per word, simplest + cleanest
             w = group["words"][0]
             start, end = _clamp_duration(w["start"], w["end"], sub_cfg)
             text = _word_text(w["word"], sub_cfg, is_group_display=False, highlight=False)
@@ -97,9 +115,6 @@ def build_ass(words: list[dict], cfg: dict, out_path: str) -> str:
                 f"Dialogue: 0,{_fmt_time(start)},{_fmt_time(end)},Word,,0,0,0,,{text}"
             )
         else:
-            # n_word mode: show the whole group, but emit one Dialogue event per
-            # highlighted-word window so the "current" word can pop/highlight
-            # while the rest of the group stays visible and static.
             full_words = [w["word"] for w in group["words"]]
             for idx, w in enumerate(group["words"]):
                 start, end = _clamp_duration(w["start"], w["end"], sub_cfg)
@@ -118,7 +133,6 @@ def build_ass(words: list[dict], cfg: dict, out_path: str) -> str:
 
 
 if __name__ == "__main__":
-    # quick manual smoke test
     from src.config import load_config
     fake_words = [
         {"word": "This", "start": 0.0, "end": 0.3},
@@ -127,5 +141,8 @@ if __name__ == "__main__":
         {"word": "test", "start": 0.55, "end": 0.9},
     ]
     cfg = load_config()
-    path = build_ass(fake_words, cfg, "test_subs.ass")
+    path = build_ass(
+        fake_words, cfg, "test_subs.ass",
+        book_title="Rich Dad Poor Dad", book_author="Robert T. Kiyosaki",
+    )
     print(f"Wrote {path}")
