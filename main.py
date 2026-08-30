@@ -12,7 +12,7 @@ from src.audio_generator import generate_audio
 from src.transcriber import get_word_timestamps
 from src.pexels_fetcher import download_clips
 from src.subtitles import build_ass
-from src.video_assembler import assemble_video
+from src.video_assembler import assemble_video, get_duration
 from src.youtube_uploader import upload_video
 
 
@@ -27,6 +27,7 @@ def run():
 
     print("== 2/6 Generating narration audio ==")
     narration_path = generate_audio(script_data["script"], cfg)
+    narration_duration = get_duration(narration_path)
 
     print("== 3/6 Transcribing for word-level timestamps ==")
     words = get_word_timestamps(narration_path, language=cfg["content"]["language"])
@@ -42,6 +43,8 @@ def run():
         words, cfg, ass_path,
         book_title=script_data.get("book_title"),
         book_author=script_data.get("book_author"),
+        # Keep the title card on screen for the whole video, not just the opening.
+        title_card_duration=narration_duration,
     )
     final_video_path = assemble_video(clip_paths, narration_path, ass_path, cfg)
     print(f"Final video: {final_video_path}")
