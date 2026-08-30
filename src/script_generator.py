@@ -1,6 +1,11 @@
 """Generates the video script, title, description, and b-roll search keywords
 using the Gemini API. Returns structured JSON so downstream steps don't have
 to re-parse free text.
+
+BOOK REVIEW VERSION: tuned for reviewing real, published books about wealth,
+business, and success. Every script follows a fixed structure: hook, book
+title+author, what it's about, who it's best for, the best takeaway, and one
+honest critique.
 """
 import json
 import random
@@ -10,33 +15,55 @@ from google import genai
 from src.config import Secrets
 
 
-TOPIC_POOL_PROMPT = """You are picking ONE specific, narrow topic for a {word_count}-word
-short-form video script in the niche: "{niche}".
-Return ONLY the topic as a short phrase, nothing else."""
+TOPIC_POOL_PROMPT = """You are picking ONE specific, real, published, well-known book
+that fits this description: "{niche}"
+
+The book MUST be real — an actual published book with a real title and a real author.
+Do not invent a title or author under any circumstances. If you are not fully certain
+a book is real, pick a different, more famous one instead.
+
+Return ONLY the book's title and author, in this exact format and nothing else:
+"Book Title" by Author Name"""
 
 SCRIPT_PROMPT = """Write a script for a fast-paced, engaging short-form YouTube video
-(like a YouTube Short / TikTok) about: "{topic}"
+reviewing this REAL, published book: {topic}
+
+The book MUST be real and the details you state about it MUST be accurate — do not
+invent facts, quotes, or claims about the book's content. If unsure of a specific
+detail, keep that part general rather than stating something that might be wrong.
+
+Structure the script in this exact order:
+1. HOOK (first line, 1 sentence): a punchy hook tied to the book's core promise —
+   e.g. "If you want to build real wealth, this book has the blueprint."
+2. State the book's exact title and the author's full name clearly and naturally.
+3. WHAT IT'S ABOUT: 1-2 sentences on the book's core idea or thesis.
+4. WHO IT'S FOR: 1 sentence on who gets the most value from this book (e.g. "best if
+   you're just starting to invest" or "perfect for first-time founders").
+5. BEST TAKEAWAY: the single most actionable idea from the book, stated concretely.
+6. WHAT COULD BE BETTER: one honest, specific, fair critique or limitation.
+7. A punchy natural closing line (not "subscribe", no calls to action).
 
 Requirements:
-- About {word_count} words, spoken narration only (no stage directions, no headers).
-- Hook the viewer in the first sentence.
-- Punchy, simple sentences. Conversational tone. {rate_hint}.
-- End with a satisfying final line (not "subscribe" / no calls to action).
+- About {word_count} words total, spoken narration only, no stage directions or headers.
+- Conversational, confident tone. {rate_hint}.
 
 Also produce:
-- A punchy YouTube title. {title_hint}
-- A short YouTube description (2-3 sentences + relevant hashtags).
+- A punchy YouTube title that includes the book's real title. {title_hint}
+- A short YouTube description (2-3 sentences, must include the real book title and
+  real author name, plus relevant hashtags).
 - A list of {keyword_count} short visual search phrases (2-4 words each) describing
-  stock footage that would visually match different moments of the script, in order.
-  These will be used to search a stock video library, so keep them concrete and visual
-  (e.g. "ocean waves aerial", "scientist microscope lab") — not abstract concepts.
+  stock footage that would visually match different moments of the review — concrete
+  and visual (e.g. "person reading book", "stack of money", "writing notes desk"),
+  not abstract concepts.
 
 Return ONLY valid JSON, no markdown fences, in this exact shape:
 {{
   "title": "...",
   "description": "...",
   "script": "...",
-  "visual_keywords": ["...", "..."]
+  "visual_keywords": ["...", "..."],
+  "book_title": "...",
+  "book_author": "..."
 }}
 """
 
@@ -50,10 +77,7 @@ def pick_topic(cfg: dict) -> str:
         return cfg["content"]["fixed_topic"]
 
     client = _client()
-    prompt = TOPIC_POOL_PROMPT.format(
-        word_count=cfg["content"]["script_word_count"],
-        niche=cfg["content"]["niche"],
-    )
+    prompt = TOPIC_POOL_PROMPT.format(niche=cfg["content"]["niche"])
     resp = client.models.generate_content(
         model=cfg["content"]["gemini_text_model"],
         contents=prompt,
@@ -62,7 +86,8 @@ def pick_topic(cfg: dict) -> str:
 
 
 def generate_script(cfg: dict) -> dict:
-    """Returns dict with keys: title, description, script, visual_keywords."""
+    """Returns dict with keys: title, description, script, visual_keywords,
+    book_title, book_author, topic."""
     topic = pick_topic(cfg)
     client = _client()
 
@@ -83,7 +108,6 @@ def generate_script(cfg: dict) -> dict:
     data = json.loads(resp.text)
     data["topic"] = topic
 
-    # basic sanity fallback in case the model returns fewer keywords than requested
     if len(data.get("visual_keywords", [])) < 2:
         data["visual_keywords"] = [topic]
 
