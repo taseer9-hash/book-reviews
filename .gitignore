@@ -1,0 +1,6 @@
+.env
+output/
+__pycache__/
+*.pyc
+test_subs.ass
+.DS_Store

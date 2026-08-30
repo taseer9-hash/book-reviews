@@ -1,0 +1,74 @@
+# =============================================================================
+# YouTube Automation Pipeline — Config
+# Edit this file to customize content, video, and subtitle style.
+# API keys/secrets go in environment variables (.env locally, GitHub Secrets in CI).
+# =============================================================================
+
+content:
+  # Niche/topic pool — a topic is picked at random each run (or set fixed_topic below)
+  niche: "bizarre science facts"
+  fixed_topic: null          # e.g. "why octopuses have three hearts" — overrides random pick
+  script_word_count: 45     # ~45-55 seconds of narration
+  language: "en"
+  gemini_text_model: "gemini-3.6-flash"   # used for script writing
+
+audio:
+  gemini_tts_model: "gemini-2.5-flash-preview-tts"
+  voice_name: "Kore"         # see Gemini TTS docs for available prebuilt voices
+  speaking_rate_hint: "calm, clear, and unhurried, articulate each word distinctly"
+
+video:
+  orientation: "vertical"    # "vertical" (1080x1920, for Shorts) or "horizontal" (1920x1080)
+  width: 1080
+  height: 1920
+  fps: 30
+  pexels_query_count: 6      # number of distinct b-roll search terms pulled from the script
+  clip_min_duration: 3.0     # seconds, min length to use from each stock clip
+  background_music: null     # path to an mp3, or null for none
+  background_music_volume: 0.08
+
+# -----------------------------------------------------------------------------
+# SUBTITLES — this is the section most people will want to tweak.
+# Rendered as an .ass file and burned in with ffmpeg/libass.
+# -----------------------------------------------------------------------------
+subtitles:
+  enabled: true
+  mode: "single_word"        # "single_word" or "n_word" (see max_words_per_group)
+  max_words_per_group: 1     # 1 = one word at a time. Try 2-3 for phrase-style captions.
+
+  font_name: "Roboto Black"  # must be installed in the render environment (see fonts/README)
+  font_size: 110              # in ASS "pt" units, scales with video resolution below
+  primary_color: "&H00FFFFFF"     # white text (ASS format: &HAABBGGRR)
+  outline_color: "&H00000000"     # black stroke
+  outline_width: 8
+  shadow_depth: 0
+  bold: true
+  italic: false
+
+  # Optional "highlight" color for the currently emphasized word (karaoke pop effect)
+  highlight_enabled: true
+  highlight_color: "&H0000D7FF"   # gold/yellow accent (BGR order: this is orange-gold)
+
+  position: "middle"         # "top", "middle", "bottom"
+  vertical_margin: 140       # px from the chosen edge
+  horizontal_margin: 60
+
+  # Pop/scale animation on each word appearing (set to 0 to disable)
+  pop_scale_start: 130       # % size it animates FROM
+  pop_duration_ms: 80
+
+  # Minimum/maximum display time per word/group, in seconds — guards against
+  # extremely short or long words throwing off pacing
+  min_word_duration: 0.18
+  max_word_duration: 1.10
+
+youtube:
+  category_id: "27"          # 27 = Education. See YouTube API docs for full list.
+  privacy_status: "private"   # "public", "unlisted", or "private"
+  default_tags: ["shorts", "facts", "didyouknow"]
+  title_prompt_hint: "punchy, curiosity-driven, under 90 characters, include 1 emoji"
+  made_for_kids: false
+
+paths:
+  work_dir: "output/tmp"
+  final_dir: "output/final"
