@@ -16,7 +16,8 @@ content:
 
 audio:
   gemini_tts_model: "gemini-2.5-flash-preview-tts"
-  voice_name: "Kore"         # see Gemini TTS docs for available prebuilt voices
+  voice_name: "Puck"         # see Gemini TTS docs for available prebuilt voices
+
   speaking_rate_hint: "highly motivational, urgent, and passionate — like a determined coach speaking directly to someone who is about to change their life, NOT calm or soft-spoken"
 
 video:
