@@ -38,7 +38,11 @@ def run():
 
     print("== 5/6 Building subtitles + assembling video ==")
     ass_path = str(Path(cfg["paths"]["work_dir"]) / "subs.ass")
-    build_ass(words, cfg, ass_path)
+    build_ass(
+        words, cfg, ass_path,
+        book_title=script_data.get("book_title"),
+        book_author=script_data.get("book_author"),
+    )
     final_video_path = assemble_video(clip_paths, narration_path, ass_path, cfg)
     print(f"Final video: {final_video_path}")
 
