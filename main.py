@@ -7,7 +7,7 @@ import traceback
 from pathlib import Path
 
 from src.config import Secrets, load_config
-from src.script_generator import generate_script
+from src.script_generator import generate_script, save_used_book
 from src.audio_generator import generate_audio
 from src.transcriber import get_word_timestamps
 from src.pexels_fetcher import download_clips
@@ -24,6 +24,10 @@ def run():
     script_data = generate_script(cfg)
     print(f"Topic: {script_data['topic']}")
     print(f"Title: {script_data['title']}")
+
+    # Record this book immediately so even if a later step fails, we don't
+    # risk regenerating the exact same book on the very next run.
+    save_used_book(script_data.get("book_title"), script_data.get("book_author"))
 
     print("== 2/6 Generating narration audio ==")
     narration_path = generate_audio(script_data["script"], cfg)
@@ -43,7 +47,6 @@ def run():
         words, cfg, ass_path,
         book_title=script_data.get("book_title"),
         book_author=script_data.get("book_author"),
-        # Keep the title card on screen for the whole video, not just the opening.
         title_card_duration=narration_duration,
     )
     final_video_path = assemble_video(clip_paths, narration_path, ass_path, cfg)
