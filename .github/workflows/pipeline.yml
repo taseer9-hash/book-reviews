@@ -8,6 +8,9 @@ on:
     - cron: "0 20 * * *"
   workflow_dispatch: {}   # lets you trigger a run manually from the Actions tab
 
+permissions:
+  contents: write   # needed so this workflow can commit used_books.json back to the repo
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -32,16 +35,6 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Debug secret lengths
-        env:
-          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-        run: |
-          echo "Client ID length: ${#YOUTUBE_CLIENT_ID}"
-          echo "Client Secret length: ${#YOUTUBE_CLIENT_SECRET}"
-          echo "Refresh Token length: ${#YOUTUBE_REFRESH_TOKEN}"
-
       - name: Run pipeline
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -50,6 +43,15 @@ jobs:
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: python main.py
+
+      - name: Commit updated used_books.json
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add used_books.json
+          git diff --cached --quiet && echo "No changes to commit" || git commit -m "Track newly used book [skip ci]"
+          git push || echo "Nothing to push"
 
       - name: Upload run artifacts on failure
         if: failure()
